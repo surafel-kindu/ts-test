@@ -24,7 +24,7 @@ jobs:
       run_id: ${{ steps.gate.outputs.run_id }}
     env:
       TESTSAVANT_API_KEY: ${{ secrets.TESTSAVANT_API_KEY }}
-      TEST_PLAN_GROUP_ID: ${{ inputs.test_plan_group_id || vars.TEST_PLAN_GROUP_ID }}
+      TEST_PLAN_GROUP_ID: ${{ inputs.test_plan_group_id || secrets.TEST_PLAN_GROUP_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
