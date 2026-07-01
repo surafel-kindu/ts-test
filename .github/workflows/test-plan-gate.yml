@@ -1,0 +1,64 @@
+name: TestSavant Test-Plan Gate
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      test_plan_id:
+        description: "Test plan UUID"
+        required: false
+      test_plan_group_id:
+        description: "Test plan group UUID (the test-plan id)"
+        required: false
+
+jobs:
+  gate:
+    name: Run test plan + gate
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+      run_id: ${{ steps.gate.outputs.run_id }}
+    env:
+      TESTSAVANT_API_KEY: ${{ secrets.TESTSAVANT_API_KEY }}
+      TEST_PLAN_GROUP_ID: ${{ inputs.test_plan_group_id || vars.TEST_PLAN_GROUP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install SDK from repository (token)
+        env:
+          TS_GITHUB_TOKEN: ${{ secrets.TS_GITHUB_TOKEN }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "git+https://${TS_GITHUB_TOKEN}@github.com/TestSavantAI/testsavant-redteam"
+      - name: Start, poll, gate
+        id: gate
+        run: bash scripts/gate_test_plan_minimal_test.sh
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-plan-result
+          path: result.json
+
+  on-pass:
+    name: Continue (next step / deploy)
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Gate passed. Run ID ${{ needs.gate.outputs.run_id }}. Proceeding..."
+
+  on-fail:
+    name: Stop (gate failed)
+    needs: gate
+    if: needs.gate.outputs.proceed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Gate failed. Run ID ${{ needs.gate.outputs.run_id }}. Halting."
+          exit 1
